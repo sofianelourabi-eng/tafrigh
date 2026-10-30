@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tafrigh</title>
+<meta name="theme-color" content="#1f6b52">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;600&family=Reem+Kufi:wght@700&display=swap" rel="stylesheet">
+<style>
+/* Une colonne : onglets Fichier / Dictée, puis la zone de texte RTL commune */
+:root{
+  --bg:#f5f6f2; --surface:#ffffff; --ink:#1d2420; --muted:#5d6862; --line:#d8ddd6;
+  --accent:#1f6b52; --accent-ink:#ffffff; --accent-soft:#e2efe9; --warn:#a4501f; --ok:#2d7a3e;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-ar:"Noto Naskh Arabic","Geeza Pro","Noto Sans Arabic","Traditional Arabic",serif;
+  --f-display:"Reem Kufi","Noto Naskh Arabic",serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141917; --surface:#1c2320; --ink:#e7ece8; --muted:#9aa69f; --line:#2f3a35;
+  --accent:#5fc49c; --accent-ink:#0f1513; --accent-soft:#1f3a30; --warn:#e39a6b; --ok:#7fd08f; color-scheme:dark;}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.status:empty{display:none}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-ui);
+  padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(32px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font:600 1.3rem/1.2 var(--f-ui)}
+h1 .ar{font-family:var(--f-display);color:var(--accent);margin-left:.35em}
+.chip{font-size:.78rem;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.chip.on{color:var(--ok)} .chip.off{color:var(--warn)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:5px}
+.tab{appearance:none;border:0;border-radius:7px;padding:10px 8px;font:500 .95rem var(--f-ui);background:transparent;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;flex:1 1 220px;min-width:0}
+.lbl,label.lbl{font-size:.76rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:100%;min-width:0}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:22px 14px;text-align:center;color:var(--muted);cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{color:var(--ink);display:block;word-break:break-word}
+.btn{appearance:none;font:600 .95rem var(--f-ui);border-radius:8px;padding:10px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,select:focus-visible,.drop:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:.85rem;color:var(--muted);margin:0}
+.status{font-size:.9rem;min-height:1.4em;font-variant-numeric:tabular-nums}
+.status.err{color:var(--warn)} .status.ok{color:var(--ok)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.mic{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mic .btn{padding:14px 22px;font-size:1rem}
+.meter{flex:1 1 120px;height:8px;background:var(--line);border-radius:4px;overflow:hidden;min-width:80px}
+.meter>i{display:block;height:100%;width:0;background:var(--accent)}
+.live .meter>i{background:var(--warn)}
+@media (prefers-reduced-motion:reduce){.bar>i{transition:none}}
+.out{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.out-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tools button{appearance:none;font:500 .85rem var(--f-ui);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;padding:7px 11px;cursor:pointer}
+.chk{display:flex;gap:6px;align-items:center;font-size:.85rem;color:var(--muted)}
+textarea{width:100%;min-height:280px;resize:vertical;font:1.25rem/2 var(--f-ar);direction:rtl;text-align:right;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.count{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.prep{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+footer{text-align:center;font-size:.8rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Transcription arabe<span class="ar" lang="ar">تفريغ</span></h1>
+    <span class="chip" id="net">…</span>
+  </header>
+
+  <section class="panel" aria-label="Modèle">
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="model">Modèle de reconnaissance</label>
+        <select id="model">
+          <option value="onnx-community/whisper-base" data-label="Rapide — environ 80 Mo (téléphone, dictée)">Rapide</option>
+          <option value="onnx-community/whisper-small" data-label="Précis — environ 250 Mo (recommandé)" selected>Précis</option>
+          <option value="onnx-community/whisper-large-v3-turbo" data-label="Très précis — environ 1 Go (Mac uniquement)" data-gpu="1">Très précis</option>
+        </select>
+      </div>
+      <button class="btn ghost" id="prep">Préparer hors ligne</button>
+    </div>
+    <div class="bar" aria-hidden="true"><i id="pbar"></i></div>
+    <div class="status" id="pstatus" role="status"></div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-file" aria-selected="true" aria-controls="p-file">Fichier audio</button>
+    <button class="tab" role="tab" id="tab-live" aria-selected="false" aria-controls="p-live">Dictée</button>
+  </div>
+
+  <section class="panel" id="p-file" role="tabpanel" aria-labelledby="tab-file">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choisir un fichier audio">
+      <strong id="fname">Touchez ici ou déposez un fichier</strong>
+      MP3, M4A, WAV, OGG, vocal WhatsApp, vidéo MP4…
+    </div>
+    <input type="file" id="file" accept="audio/*,video/*,.opus,.ogg,.m4a,.mp3,.wav" hidden>
+    <div class="row"><button class="btn" id="go" disabled>Transcrire</button></div>
+    <div class="bar" aria-hidden="true"><i id="fbar"></i></div>
+    <div class="status" id="fstatus" role="status"></div>
+  </section>
+
+  <section class="panel" id="p-live" role="tabpanel" aria-labelledby="tab-live" hidden>
+    <div class="mic" id="micbox">
+      <button class="btn" id="micbtn">Démarrer la dictée</button>
+      <div class="meter" aria-hidden="true"><i id="lvl"></i></div>
+    </div>
+    <div class="status" id="lstatus" role="status"></div>
+    <p class="note">Parlez phrase par phrase : chaque phrase s'écrit après une courte pause. Sur le téléphone, le modèle « Rapide » donne le texte plus vite. L'écran reste allumé pendant la dictée.</p>
+  </section>
+
+  <section class="out">
+    <div class="out-head">
+      <span class="lbl">Texte transcrit</span>
+      <div class="tools">
+        <label class="chk"><input type="checkbox" id="ts"> Repères de temps</label>
+        <button id="copy">Copier</button>
+        <button id="share" hidden>Partager</button>
+        <button id="dl">Enregistrer .txt</button>
+        <button id="clear">Effacer</button>
+      </div>
+    </div>
+    <textarea id="txt" lang="ar" dir="rtl" placeholder="…سيظهر النص هنا" aria-label="Texte transcrit"></textarea>
+    <span class="count" id="count">0 mot</span>
+  </section>
+
+  <footer>Tout se fait sur votre appareil : aucun audio n'est envoyé. Relisez toujours le texte, surtout les noms propres et les citations.</footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
