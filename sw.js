@@ -1,5 +1,5 @@
 // Service worker : garde l'application et son moteur sur l'appareil pour fonctionner hors ligne
-const VERSION = 'tafrigh-v1';
+const VERSION = 'tafrigh-v2';
 const RUNTIME = 'tafrigh-runtime';
 const SHELL = [
   './', './index.html', './app.js', './worker.js', './recorder.js',

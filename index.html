@@ -70,6 +70,18 @@ textarea{width:100%;min-height:280px;resize:vertical;font:1.25rem/2 var(--f-ar);
 .count{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .prep{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 footer{text-align:center;font-size:.8rem;color:var(--muted)}
+#print{display:none}
+@media print{
+  @page{size:A4;margin:22mm 20mm}
+  :root{color-scheme:light}
+  body{background:#fff!important;color:#111!important;padding:0!important}
+  .wrap{display:none!important}
+  #print{display:block}
+  #print h1{font:700 26pt/1.3 var(--f-ar);color:#1f6b52;text-align:center;margin:0 0 4pt}
+  #print .meta{font:10pt/1.4 var(--f-ui);color:#666;text-align:center;margin:0 0 22pt;padding-bottom:10pt;border-bottom:.6pt solid #bfc8c2}
+  #print p[dir=rtl]{font:16pt/2.2 var(--f-ar);text-align:justify;margin:0 0 14pt;orphans:3;widows:3}
+  #print .ts{font:600 9.5pt var(--f-ui);color:#1f6b52;margin-left:10pt;vertical-align:2pt}
+}
 </style>
 </head>
 <body>
@@ -127,7 +139,9 @@ footer{text-align:center;font-size:.8rem;color:var(--muted)}
         <label class="chk"><input type="checkbox" id="ts"> Repères de temps</label>
         <button id="copy">Copier</button>
         <button id="share" hidden>Partager</button>
-        <button id="dl">Enregistrer .txt</button>
+        <button id="word">Word</button>
+        <button id="pdf">PDF</button>
+        <button id="dl">.txt</button>
         <button id="clear">Effacer</button>
       </div>
     </div>
@@ -137,6 +151,7 @@ footer{text-align:center;font-size:.8rem;color:var(--muted)}
 
   <footer>Tout se fait sur votre appareil : aucun audio n'est envoyé. Relisez toujours le texte, surtout les noms propres et les citations.</footer>
 </div>
+<div id="print" aria-hidden="true"></div>
 <script src="app.js"></script>
 </body>
 </html>

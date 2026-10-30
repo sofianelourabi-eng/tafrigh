@@ -166,6 +166,7 @@ function fReport(msg, pct, cls) { setStatus($('fstatus'), msg, cls); if (pct != 
 async function pick(file) {
   if (fileBusy) return;
   $('fname').textContent = file.name;
+  sourceName = file.name;
   $('go').disabled = true; audioData = null;
   fReport('Lecture du fichier…', 0);
   try {
@@ -232,7 +233,7 @@ $('go').onclick = async () => {
 function render() {
   if (chunks.length) {
     const withTs = $('ts').checked;
-    const body = chunks.map(c => withTs ? '[' + fmt(c.start) + '] ' + c.text : c.text).join(withTs ? '\n' : ' ');
+    const body = chunks.map(c => withTs ? '[' + fmt(c.start) + '] ' + c.text : c.text).join('\n\n');
     txt.value = (baseText ? baseText + '\n\n' : '') + body;
   }
   count();
@@ -257,13 +258,118 @@ if (navigator.share) {
   $('share').onclick = () => { navigator.share({ text: txt.value }).catch(() => {}); };
 }
 $('dl').onclick = () => {
-  const blob = new Blob(['﻿' + txt.value], { type: 'text/plain;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  saveBlob(new Blob(['﻿' + txt.value], { type: 'text/plain;charset=utf-8' }), baseName() + '.txt');
+};
+
+/* ===== Export Word / PDF (mise en page aérée) ===== */
+let sourceName = '';
+function baseName() {
   const d = new Date();
-  a.download = 'transcription-' + d.toISOString().slice(0, 10) + '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0') + '.txt';
+  return 'transcription-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
+    '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0');
+}
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+// Découpe en paragraphes courts : un par ligne, et les blocs trop longs coupés à une ponctuation
+function paragraphs() {
+  const out = [];
+  txt.value.replace(/\r/g, '').split(/\n+/).map(s => s.trim()).filter(Boolean).forEach(line => {
+    const m = line.match(/^\[(\d{2}:\d{2})\]\s*(.*)$/);
+    const ts = m ? m[1] : '', body = m ? m[2] : line;
+    const words = body.split(/\s+/);
+    let cur = [], first = true;
+    const push = () => { if (cur.length) { out.push({ ts: first ? ts : '', text: cur.join(' ') }); first = false; cur = []; } };
+    for (const w of words) {
+      cur.push(w);
+      if ((cur.length >= 55 && /[.!؟?،:؛]$/.test(w)) || cur.length >= 85) push();
+    }
+    push();
+  });
+  return out;
+}
+function metaLine() {
+  const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return 'Transcription du ' + date + (sourceName ? ' — ' + sourceName : '');
+}
+function nothing() {
+  if (txt.value.trim()) return false;
+  alert('Il n’y a pas encore de texte à exporter.');
+  return true;
+}
+
+// --- Word (.docx) généré sur l'appareil, sans internet ---
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zip(files, type) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint16(12, 0x21, true); lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true);
+    lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(14, 0x21, true); ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true);
+    ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + data.length;
+  }
+  const cd = central.reduce((s, a) => s + a.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cd, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type });
+}
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function buildDocx() {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const ar = (t, rpr) => `<w:r><w:rPr><w:rtl/>${rpr || ''}</w:rPr><w:t xml:space="preserve">${esc(t)}</w:t></w:r>`;
+  const lt = (t, rpr) => `<w:r><w:rPr>${rpr || ''}</w:rPr><w:t xml:space="preserve">${esc(t)}</w:t></w:r>`;
+  const body = [];
+  body.push(`<w:p><w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:after="80"/></w:pPr>${ar('تفريغ صوتي', '<w:b/><w:bCs/><w:color w:val="1F6B52"/><w:sz w:val="44"/><w:szCs w:val="44"/>')}</w:p>`);
+  body.push(`<w:p><w:pPr><w:jc w:val="center"/><w:pBdr><w:bottom w:val="single" w:sz="4" w:space="12" w:color="BFC8C2"/></w:pBdr><w:spacing w:after="480"/></w:pPr>${lt(metaLine(), '<w:color w:val="666666"/><w:sz w:val="20"/><w:szCs w:val="20"/>')}</w:p>`);
+  for (const p of paragraphs()) {
+    const ts = p.ts ? lt(p.ts, '<w:b/><w:color w:val="1F6B52"/><w:sz w:val="20"/><w:szCs w:val="20"/>') + ar('   ') : '';
+    body.push(`<w:p><w:pPr><w:bidi/><w:jc w:val="both"/><w:spacing w:after="280" w:line="440" w:lineRule="auto"/></w:pPr>${ts}${ar(p.text)}</w:p>`);
+  }
+  const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${body.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1418" w:right="1418" w:bottom="1418" w:left="1418" w:header="709" w:footer="709" w:gutter="0"/><w:bidi/></w:sectPr></w:body></w:document>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="fr-FR" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>`;
+  return zip([
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>' },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>' },
+    { name: 'word/_rels/document.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'word/document.xml', data: document },
+    { name: 'word/styles.xml', data: styles }
+  ], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+}
+$('word').onclick = () => { if (!nothing()) saveBlob(buildDocx(), baseName() + '.docx'); };
+
+// --- PDF : page d'impression mise en forme, puis « Enregistrer au format PDF » ---
+$('pdf').onclick = () => {
+  if (nothing()) return;
+  const pr = $('print');
+  pr.innerHTML = '';
+  const h = document.createElement('h1'); h.lang = 'ar'; h.dir = 'rtl'; h.textContent = 'تفريغ صوتي';
+  const meta = document.createElement('p'); meta.className = 'meta'; meta.textContent = metaLine();
+  pr.append(h, meta);
+  for (const p of paragraphs()) {
+    const el = document.createElement('p'); el.lang = 'ar'; el.dir = 'rtl';
+    if (p.ts) { const s = document.createElement('span'); s.className = 'ts'; s.dir = 'ltr'; s.textContent = p.ts; el.append(s); }
+    el.append(document.createTextNode(p.text));
+    pr.append(el);
+  }
+  const old = document.title;
+  document.title = baseName();
+  const restore = () => { document.title = old; removeEventListener('afterprint', restore); };
+  addEventListener('afterprint', restore);
+  setTimeout(() => window.print(), 50);
 };
 
 /* ===== Dictée (micro, sur l'appareil) ===== */
